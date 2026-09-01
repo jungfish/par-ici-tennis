@@ -1,24 +1,30 @@
 name: Tennis booking
 
+# Paris Tennis ouvre les créneaux à J+6, à 08:00 pile.
+# Pour jouer mardi / mercredi / jeudi, il faut donc lancer le script
+# le mercredi / jeudi / vendredi (jour de jeu + 1).
+#
+# Le cron GitHub est en UTC et dérive souvent de plusieurs minutes.
+# On déclenche donc volontairement en avance (05:30 UTC = 07:30 Paris l'été,
+# 06:30 l'hiver) et l'étape "Wait 08:00" dort jusqu'à 08:00:00 Europe/Paris.
+
 on:
   schedule:
-    # Run 15 minutes early to account for possible delays in GitHub Actions scheduling.
-    - cron: '45 7 * * *'
-      timezone: 'Europe/Paris'
+    - cron: '30 5 * * 3,4,5'
   workflow_dispatch:
 
 permissions:
   contents: read
-  actions: write # to disable this workflow after it runs
 
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 
 jobs:
-  run-once:
-    name: Run script at 08:00 Europe/Paris and self-disable
+  book:
+    name: Book Valeyre 12h/13h at 08:00 Europe/Paris
     runs-on: ubuntu-latest
+    timeout-minutes: 150
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -35,9 +41,9 @@ jobs:
           set -euo pipefail
           if [ -n "${CONFIG_JSON:-}" ]; then
             printf "%s" "$CONFIG_JSON" > config.json
-            echo "config.json created from CONFIG_JSON secret"
+            echo "config.json created from CONFIG_JSON variable"
           else
-            echo "ERROR: Missing CONFIG_JSON secret." >&2
+            echo "ERROR: Missing CONFIG_JSON variable." >&2
             exit 1
           fi
 
@@ -66,16 +72,3 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           NTFY_DOMAIN: ${{ secrets.NTFY_DOMAIN }}
         run: npm start
-
-      - name: Self-disable this workflow (GitHub CLI)
-        if: always()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          echo "GitHub CLI version:" && gh --version
-          echo "Disabling workflow using gh..."
-          # Disable this workflow so it won't run automatically the next day
-          gh workflow disable .github/workflows/book-tennis.yml
-          echo "Workflow disabled. Re-enable it manually from the Actions tab when needed."
