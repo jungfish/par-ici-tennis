@@ -1,0 +1,30 @@
+name: Keepalive
+
+# GitHub désactive automatiquement les workflows planifiés après 60 jours
+# sans activité sur le repo. Ce workflow pousse un commit vide le 1er de
+# chaque mois pour que le cron de "Tennis booking" reste actif.
+
+on:
+  schedule:
+    - cron: '0 4 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Push keepalive commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .keepalive
+          git add .keepalive
+          git commit -m "chore: keepalive" || exit 0
+          git push
